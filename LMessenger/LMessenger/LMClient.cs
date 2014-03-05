@@ -18,16 +18,8 @@ namespace LMessenger
         {
             InitializeComponent();
 
-            this.btnConnect.Text = "Connect";
-            this.txtBoxPassword.ReadOnly = false;
-            this.txtBoxServerIP.ReadOnly = false;
-            this.txtBoxUsername.ReadOnly = false;
-            this.txtBoxServerPort.ReadOnly = false;
-            this.txtBoxMessage.ReadOnly = true;
-            this.btnSendMessage.Enabled = false;
-            this.btnConnect.Enabled = false;
-            this.comboBoxMessageType.Enabled = false;
-            this.listBoxUsers.Enabled = false;
+            this.EnableConnect();
+            this.ToggleElements();
             this.comboBoxMessageType.BeginUpdate();
             this.comboBoxMessageType.Items.Add("All");
             this.comboBoxMessageType.Items.Add("PM");
@@ -43,27 +35,13 @@ namespace LMessenger
             if(this.isConnected)
             {
                 this.btnConnect.Text = "Disconnect";
-                this.txtBoxPassword.ReadOnly = true;
-                this.txtBoxServerIP.ReadOnly = true;
-                this.txtBoxUsername.ReadOnly = true;
-                this.txtBoxServerPort.ReadOnly = true;
-                this.txtBoxMessage.ReadOnly = false;
-                this.btnSendMessage.Enabled = true;
-                this.comboBoxMessageType.Enabled = true;
-                this.listBoxUsers.Enabled = true;
             }
             else
             {
                 this.btnConnect.Text = "Connect";
-                this.txtBoxPassword.ReadOnly = false;
-                this.txtBoxServerIP.ReadOnly = false;
-                this.txtBoxUsername.ReadOnly = false;
-                this.txtBoxServerPort.ReadOnly = false;
-                this.txtBoxMessage.ReadOnly = true;
-                this.btnSendMessage.Enabled = false;
-                this.comboBoxMessageType.Enabled = false;
-                this.listBoxUsers.Enabled = false;
             }
+
+            this.ToggleElements();
         }
 
         private void btnSendMessage_Click(object sender, EventArgs e)
@@ -118,9 +96,16 @@ namespace LMessenger
             this.btnConnect.Enabled = v;
         }
 
-        private void comboBoxMessageType_SelectedIndexChanged(object sender, EventArgs e)
+        private void ToggleElements()
         {
-
+            this.txtBoxPassword.ReadOnly = this.isConnected;
+            this.txtBoxServerIP.ReadOnly = this.isConnected;
+            this.txtBoxUsername.ReadOnly = this.isConnected;
+            this.txtBoxServerPort.ReadOnly = this.isConnected;
+            this.txtBoxMessage.ReadOnly = !this.isConnected;
+            this.btnSendMessage.Enabled = this.isConnected;
+            this.comboBoxMessageType.Enabled = this.isConnected;
+            this.listBoxUsers.Enabled = this.isConnected;
         }
     }
 }

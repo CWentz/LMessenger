@@ -159,7 +159,6 @@
             this.comboBoxMessageType.Size = new System.Drawing.Size(100, 21);
             this.comboBoxMessageType.Sorted = true;
             this.comboBoxMessageType.TabIndex = 14;
-            this.comboBoxMessageType.SelectedIndexChanged += new System.EventHandler(this.comboBoxMessageType_SelectedIndexChanged);
             // 
             // listBoxUsers
             // 
