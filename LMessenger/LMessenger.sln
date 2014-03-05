@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LMessenger", "LMessenger\LM
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LMessengerServer", "LMessengerServer\LMessengerServer.csproj", "{B1AAC1E8-254E-4055-A635-745172247EBF}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LNetwork", "LNetwork\LNetwork.csproj", "{A8D89FDA-0A1D-4689-8B46-A08B4ADFEDD1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{B1AAC1E8-254E-4055-A635-745172247EBF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B1AAC1E8-254E-4055-A635-745172247EBF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B1AAC1E8-254E-4055-A635-745172247EBF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A8D89FDA-0A1D-4689-8B46-A08B4ADFEDD1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A8D89FDA-0A1D-4689-8B46-A08B4ADFEDD1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A8D89FDA-0A1D-4689-8B46-A08B4ADFEDD1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A8D89FDA-0A1D-4689-8B46-A08B4ADFEDD1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

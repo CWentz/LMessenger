@@ -43,6 +43,7 @@
             this.txtBoxPassword = new System.Windows.Forms.TextBox();
             this.comboBoxMessageType = new System.Windows.Forms.ComboBox();
             this.listBoxUsers = new System.Windows.Forms.ListBox();
+            this.labelStatus = new System.Windows.Forms.Label();
             this.SuspendLayout();
             // 
             // btnConnect
@@ -85,6 +86,7 @@
             // txtBoxServerPort
             // 
             this.txtBoxServerPort.Location = new System.Drawing.Point(294, 101);
+            this.txtBoxServerPort.MaxLength = 8;
             this.txtBoxServerPort.Name = "txtBoxServerPort";
             this.txtBoxServerPort.Size = new System.Drawing.Size(100, 20);
             this.txtBoxServerPort.TabIndex = 4;
@@ -93,6 +95,7 @@
             // txtBoxServerIP
             // 
             this.txtBoxServerIP.Location = new System.Drawing.Point(294, 62);
+            this.txtBoxServerIP.Multiline = true;
             this.txtBoxServerIP.Name = "txtBoxServerIP";
             this.txtBoxServerIP.Size = new System.Drawing.Size(100, 20);
             this.txtBoxServerIP.TabIndex = 5;
@@ -169,11 +172,21 @@
             this.listBoxUsers.Size = new System.Drawing.Size(100, 119);
             this.listBoxUsers.TabIndex = 15;
             // 
+            // labelStatus
+            // 
+            this.labelStatus.AutoSize = true;
+            this.labelStatus.Location = new System.Drawing.Point(13, 389);
+            this.labelStatus.Name = "labelStatus";
+            this.labelStatus.Size = new System.Drawing.Size(46, 13);
+            this.labelStatus.TabIndex = 16;
+            this.labelStatus.Text = "Status...";
+            // 
             // LMClient
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(403, 394);
+            this.ClientSize = new System.Drawing.Size(403, 410);
+            this.Controls.Add(this.labelStatus);
             this.Controls.Add(this.listBoxUsers);
             this.Controls.Add(this.comboBoxMessageType);
             this.Controls.Add(this.labelUserPassword);
@@ -213,6 +226,7 @@
         private System.Windows.Forms.TextBox txtBoxPassword;
         private System.Windows.Forms.ComboBox comboBoxMessageType;
         private System.Windows.Forms.ListBox listBoxUsers;
+        private System.Windows.Forms.Label labelStatus;
     }
 }
 
