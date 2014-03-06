@@ -20,7 +20,7 @@ namespace LMessengerServer
         private bool isRunning = false;
         private const int port = 1337;
         private TcpListener listener;
-        private List<LClient> clients;
+        //private List<LClient> clients;
         private Socket socket;
         private Thread thread;
         private Thread clientService;
@@ -30,6 +30,8 @@ namespace LMessengerServer
         /// <summary>
         /// constructor
         /// </summary>
+        /// 
+
         public LMServer()
         {
             InitializeComponent();
@@ -44,6 +46,73 @@ namespace LMessengerServer
             this.comboBoxMessageType.SelectedItem = this.comboBoxMessageType.Items[0];
         }
 
+        #region delegates
+
+        delegate void SetTextCallback(Control obj, string text);
+        delegate void AddListBoxCallback(ListBox obj, string text);
+        delegate void RemoveListBoxCallback(ListBox obj, string text);
+        delegate void SetAppendTextCallback(TextBoxBase obj, string text);
+
+        private void AddListBox(ListBox obj, string text)
+        {
+            if (obj.InvokeRequired)
+            {
+                AddListBoxCallback tcb = new AddListBoxCallback(AddListBox);
+                this.Invoke(tcb, new Object[] { obj, text });
+            }
+            else
+            {
+                if (obj.Items.Contains(text)) return;
+                obj.BeginUpdate();
+                obj.Items.Add(text);
+                obj.EndUpdate();
+            }
+        }
+
+        private void RemoveListBox(ListBox obj, string text)
+        {
+            if (obj.InvokeRequired)
+            {
+                RemoveListBoxCallback tcb = new RemoveListBoxCallback(RemoveListBox);
+                this.Invoke(tcb, new Object[] { obj, text });
+            }
+            else
+            {
+                if (!obj.Items.Contains(text)) return;
+                obj.BeginUpdate();
+                obj.Items.Remove(text);
+                obj.EndUpdate();
+            }
+        }
+
+        void SetText(Control obj, string text)
+        {
+            if (obj.InvokeRequired)
+            {
+                SetTextCallback tcb = new SetTextCallback(SetText);
+                this.Invoke(tcb, new Object[] { obj, text });
+            }
+            else
+            {
+                obj.Text = text;
+            }
+        }
+
+        private void SetAppendText(TextBoxBase obj, string text)
+        {
+            if (obj.InvokeRequired)
+            {
+                SetAppendTextCallback tcb = new SetAppendTextCallback(SetAppendText);
+                this.Invoke(tcb, new Object[] { obj, text });
+            }
+            else
+            {
+                obj.AppendText(text);
+            }
+        }
+
+        #endregion
+
         /// <summary>
         /// clicked connect button
         /// </summary>
@@ -56,14 +125,14 @@ namespace LMessengerServer
 
             if (this.isRunning)
             {
-                this.btnConnect.Text = "Disconnect";
-                this.listBoxUsers.Items.Add("Admin");
+                this.SetText(this.btnConnect, "Disconnect");
+                this.AddListBox(this.listBoxUsers, "Admin");
                 this.DeployServer();
             }
             else
             {
-                this.btnConnect.Text = "Deploy";
-                this.listBoxUsers.Items.Remove("Admin");
+                this.SetText(this.btnConnect, "Deploy");
+                this.RemoveListBox(this.listBoxUsers, "Admin");
                 this.Shutdown();
             }
 
@@ -77,22 +146,48 @@ namespace LMessengerServer
         /// <param name="e"></param>
         private void btnSendCommand_Click(object sender, EventArgs e)
         {
+            if(this.isRunning)
             switch(this.comboBoxMessageType.SelectedItem.ToString())
             {
                 case "All":
+                    this.SendToAllClients(EMessageCode.MessageAll, this.txtBoxCommand.Text);
                     break;
-                case "PM":
+                case "Whisper":
+                    {
+                        string tempWhisper = "";
+                        foreach (KeyValuePair<string, LClient> entry in this.clientsDict)
+                        {
+                            if((string)this.listBoxUsers.Items[this.listBoxUsers.SelectedIndex] == entry.Value.LogData())
+                            {
+                                tempWhisper = entry.Key;
+                            }
+                        }
+                        if(this.clientsDict.ContainsKey(tempWhisper))
+                            this.SendToClient(this.clientsDict[tempWhisper], EMessageCode.MessageWhisper, this.txtBoxCommand.Text);
+                    }
                     break;
                 case "File":
                     break;
                 case "Kick":
+                    {
+                        string tempWhisper = "";
+                        foreach (KeyValuePair<string, LClient> entry in this.clientsDict)
+                        {
+                            if ((string)this.listBoxUsers.Items[this.listBoxUsers.SelectedIndex] == entry.Value.LogData())
+                            {
+                                tempWhisper = entry.Key;
+                            }
+                        }
+                        if (this.clientsDict.ContainsKey(tempWhisper))
+                            this.SendToClient(this.clientsDict[tempWhisper], EMessageCode.DropConnection, this.txtBoxCommand.Text);
+                    }
                     break;
 
             }
-
-            this.txtBoxReader.AppendText("Admin: " + this.txtBoxCommand.Text + "\n");
-            this.txtBoxCommand.Text = "";
-                
+            this.SetAppendText(this.txtBoxReader, "Admin: "+ this.txtBoxCommand.Text + "\n");
+            this.logger.Write("Admin: " + this.txtBoxCommand.Text + "\n");
+            System.Threading.Thread.Sleep(100);
+            this.SetText(this.txtBoxCommand, "");    
         }
 
         /// <summary>
@@ -109,7 +204,7 @@ namespace LMessengerServer
         {
             if (!Directory.Exists("logs"))
                 Directory.CreateDirectory("logs");
-            string fname = "logs\\" + DateTime.Now.ToString("ddMMyyHHmm") + ".txt";
+            string fname = "logs\\" + DateTime.Now.ToString("dd - MMM - yyyy - HHmm") + ".txt";
             this.logger = new StreamWriter(new FileStream(fname, FileMode.OpenOrCreate,
                 FileAccess.Write));
         }
@@ -117,7 +212,7 @@ namespace LMessengerServer
         private void DeployServer()
         {
             this.clientsDict = new Dictionary<string, LClient>();
-            this.clients = new List<LClient>();
+            //this.clients = new List<LClient>();
             this.credentials = new Dictionary<string, string>();
             this.LoadCredential();
             this.LoggingStart();
@@ -154,9 +249,8 @@ namespace LMessengerServer
         private void ServiceClient()
         {
             Socket c = this.socket;
-            bool isProcessing = true;
 
-            while (isProcessing)
+            while (true)
             {
                 this.Recieve(c);
             }
@@ -184,26 +278,32 @@ namespace LMessengerServer
                             break;
                         case EMessageCode.HandShake:
                             {
+                                //checks credentials
                                 if(this.CheckCredentials(tokens[1], tokens[2]))
                                 {
+                                    //checks if the client name isn't already in use.
                                     if(!this.clientsDict.ContainsKey(tokens[1]))
                                     {
                                         EndPoint ep = client.RemoteEndPoint;
                                         LClient c = new LClient(tokens[1],ep,clientService, client);
 
                                         this.clientsDict.Add(c.UserName, c);
-
                                         this.SendToClient(c, EMessageCode.HandShake, "Very nice");
-                                        this.SentToAllClients(EMessageCode.UserConnected, c.UserName);
+                                        //pause for the client to setup before receiving next message.
+                                        System.Threading.Thread.Sleep(500);
+                                        this.SendToAllClients(EMessageCode.UserConnected, c.UserName);
+                                        this.AddListBox(this.listBoxUsers, c.LogData());
                                     }
                                     else
                                     {
+                                        this.logger.Write("DOUBLE ACCESS:\nAttempting access: " + tokens[1] + "Current Logged in User: " + this.clientsDict[tokens[1]].MySocket.RemoteEndPoint.ToString() + "\nAttempting Access: " + client.RemoteEndPoint.ToString());
                                         byte[] bufferUser = System.Text.Encoding.ASCII.GetBytes((((byte)EMessageCode.InvalidUsername) + "|Admin|User name in use.").ToCharArray());
                                         client.Send(bufferUser, bufferUser.Length, 0);
                                     }
                                 }
                                 else
                                 {
+                                    this.logger.Write("INVALID PASSWORD: \n" + "User: " +tokens[1] + "\nIP: " + client.RemoteEndPoint.ToString());
                                     byte[] bufferPass = System.Text.Encoding.ASCII.GetBytes((((byte)EMessageCode.InvalidPassword) + "|Admin|Invalid password.").ToCharArray());
                                     client.Send(bufferPass, bufferPass.Length, 0);
                                 }
@@ -234,15 +334,27 @@ namespace LMessengerServer
                                 {
                                     m += tokens[i] + "|";
                                 }
-                                this.SentToAllClients(EMessageCode.MessageAll, m);
-                                this.txtBoxReader.AppendText(tokens[1] + ": " + tokens[2]);
-                                this.logger.WriteLine(tokens[1] + ": " + tokens[2]+"\n");
+                                m += "\n";
+                                this.RelayToAllClients(EMessageCode.MessageAll, tokens[1], m);
+                                this.SetAppendText(this.txtBoxReader, m);
+                                this.logger.WriteLine(m);
                                 isLooping = false;
                             }
                             break;
                         case EMessageCode.MessageWhisper:
                             {
-
+                                string m = "";
+                                for (int i = 2; i < tokens.Length; i++)
+                                {
+                                    m += tokens[i] + "|";
+                                }
+                                m += "\n";
+                                this.SetAppendText(this.txtBoxReader, tokens[1] + " : " + client.RemoteEndPoint.ToString() + " whispers to " + tokens[2] + ": " + m);
+                                this.logger.WriteLine(tokens[1] + " : " + client.RemoteEndPoint.ToString() + " whispers to " + tokens[2] + ": " + m + "\n");
+                                if (this.clientsDict.ContainsKey(tokens[2]))
+                                {
+                                    this.RelayToClient(this.clientsDict[tokens[2]], EMessageCode.MessageWhisper, tokens[1], m);
+                                }
                                 isLooping = false;
                             }
                             break;
@@ -264,20 +376,16 @@ namespace LMessengerServer
                             break;
                         case EMessageCode.UserDisconnect:
                             {
-                                //this.listBoxUsers.BeginUpdate();
-                                //this.listBoxUsers.Items.Remove(tokens[1]);
-                                //this.listBoxUsers.EndUpdate();
-                                this.txtBoxReader.AppendText(tokens[1] + " has left the server.\n");
+                                this.SendToAllClients(EMessageCode.UserDisconnect, tokens[1]);
+                                this.SetAppendText(this.txtBoxReader, tokens[1] + " has left the server.\n");
                                 this.logger.WriteLine(tokens[1] + " has left the server.\n");
+
                                 isLooping = false;
                             }
                             break;
                         case EMessageCode.UserConnected:
                             {
-                                //this.listBoxUsers.BeginUpdate();
-                                //this.listBoxUsers.Items.Add(tokens[1]);
-                                //this.listBoxUsers.EndUpdate();
-                                this.txtBoxReader.AppendText(tokens[1] + " has joined the server.\n");
+                                this.SetAppendText(this.txtBoxReader, tokens[1] + " has joined the server.\n");
                                 this.logger.WriteLine(tokens[1] + " has joined the server.\n");
                                 isLooping = false;
                             }
@@ -291,7 +399,7 @@ namespace LMessengerServer
             }
         }
 
-        private void SentToAllClients(EMessageCode code, string message)
+        private void SendToAllClients(EMessageCode code, string message)
         {
             foreach(KeyValuePair<string,LClient> entry in this.clientsDict)
             {
@@ -299,11 +407,11 @@ namespace LMessengerServer
             }
         }
 
-        private void SendToClient(LClient cl, EMessageCode code,  string message)
+        private void SendToClient(LClient cl, EMessageCode code, string message)
         {
             try
             {
-                byte[] buffer = System.Text.Encoding.ASCII.GetBytes((((char)code) + "|" + message + "|").ToCharArray());
+                byte[] buffer = System.Text.Encoding.ASCII.GetBytes((((char)code) + "|Admin|" + message + "|\n").ToCharArray());
                 cl.MySocket.Send(buffer, buffer.Length, 0);
             }
             catch (Exception e)
@@ -312,9 +420,33 @@ namespace LMessengerServer
                 cl.MySocket.Close();
                 cl.MyThread.Abort();
                 this.clientsDict.Remove(cl.UserName);
-                this.listBoxUsers.Items.Remove(cl.UserName + " : " + cl.Host.ToString());
+                this.RemoveListBox(this.listBoxUsers, cl.LogData());
             }
-            
+        }
+
+        private void RelayToClient(LClient cl, EMessageCode code, string sender, string message)
+        {
+            try
+            {
+                byte[] buffer = System.Text.Encoding.ASCII.GetBytes((((char)code) + "|" + sender + "|" + message + "|").ToCharArray());
+                cl.MySocket.Send(buffer, buffer.Length, 0);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                cl.MySocket.Close();
+                cl.MyThread.Abort();
+                this.clientsDict.Remove(cl.UserName);
+                this.RemoveListBox(this.listBoxUsers, cl.LogData());
+            }
+        }
+
+        private void RelayToAllClients(EMessageCode code, string sender, string message)
+        {
+            foreach (KeyValuePair<string, LClient> entry in this.clientsDict)
+            {
+                this.RelayToClient(entry.Value, code, sender, message);
+            }
         }
 
         #region credentials
@@ -357,8 +489,7 @@ namespace LMessengerServer
             }
             catch(IOException e)
             {
-                Console.WriteLine(e);
-                Console.WriteLine("error creating credential.");
+                MessageBox.Show("Error creating credentials:\n\n" + e, "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop);
             }
 
             this.credentials.Add(username, password);
@@ -392,8 +523,7 @@ namespace LMessengerServer
                 }
             catch(IOException e)
             {
-                Console.WriteLine(e);
-                Console.WriteLine("error loading credentials.");
+                MessageBox.Show("Error Loading credentials:\n\n" + e, "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop);
             }
 
         }
@@ -402,17 +532,32 @@ namespace LMessengerServer
 
         private void Shutdown()
         {
+            if (!this.isRunning) return;
             this.isRunning = false;
-            listener.Stop();
 
-            foreach(LClient c in clients)
+            foreach(LClient c in this.clientsDict.Values)
             {
-                c.MySocket.Disconnect(false);
-                if(c.MyThread != null && c.MyThread.IsAlive)
-                    c.MyThread.Abort();
+                this.SendToClient(c, EMessageCode.DropConnection, "Server shutdown");
+                if(!c.Shutdown())
+                {
+                    Console.WriteLine(c.UserName + " failed to shutdown.");
+                }
+
             }
 
-            clients.Clear();
+
+            if (this.listener != null)
+            {
+                listener.Stop();
+                listener = null;
+            }
+
+
+            if (this.clientsDict != null)
+            {
+                this.clientsDict.Clear();
+                this.clientsDict = null;
+            }
 
             if (logger != null)
             {

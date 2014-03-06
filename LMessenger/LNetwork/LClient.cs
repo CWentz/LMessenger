@@ -58,5 +58,37 @@ namespace LNetwork
             set { this.userName = value; }
         }
 
+        public bool Shutdown()
+        {
+            int counter = 0;
+            while (this.thread != null && this.socket != null && this.endpoint != null)
+            {
+                if (this.thread != null)
+                {
+                    if (this.thread.IsAlive)
+                        this.thread.Abort();
+                    this.thread = null;
+                }
+
+                if (this.socket != null)
+                {
+                    this.socket.Disconnect(true);
+                    this.socket.Close();
+                    this.socket.Dispose();
+                    this.socket = null;
+                }
+
+                if (this.endpoint != null)
+                {
+                    this.endpoint = null;
+                }
+
+                counter++;
+                if (counter > 10)
+                    return false;
+            }
+
+            return true;
+        }
     }
 }

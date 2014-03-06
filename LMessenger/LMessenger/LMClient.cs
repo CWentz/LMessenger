@@ -40,17 +40,51 @@ namespace LMessenger
             this.EnableConnectBtn();
             this.ToggleElements();
             this.comboBoxMessageType.BeginUpdate();
-            this.comboBoxMessageType.Items.Add("All");
-            this.comboBoxMessageType.Items.Add("PM");
-            this.comboBoxMessageType.Items.Add("File");
+            this.comboBoxMessageType.Items.Add(EMessageMode.All.ToString());
+            this.comboBoxMessageType.Items.Add(EMessageMode.Whisper.ToString());
+            this.comboBoxMessageType.Items.Add(EMessageMode.File.ToString());
             this.comboBoxMessageType.EndUpdate();
             this.comboBoxMessageType.SelectedItem = this.comboBoxMessageType.Items[0];
         }
 
-        delegate void SetTextCallback(Control obj, string text);
-        delegate void SetAppendTextCallback(TextBoxBase obj, string text);
-        //private Thread bgThread = null;
+        #region delegates
 
+        delegate void SetTextCallback(Control obj, string text);
+        delegate void AddListBoxCallback(ListBox obj, string text);
+        delegate void RemoveListBoxCallback(ListBox obj, string text);
+        delegate void SetAppendTextCallback(TextBoxBase obj, string text);
+
+        private void AddListBox(ListBox obj, string text)
+        {
+            if (obj.InvokeRequired)
+            {
+                AddListBoxCallback tcb = new AddListBoxCallback(AddListBox);
+                this.Invoke(tcb, new Object[] { obj, text });
+            }
+            else
+            {
+                if (obj.Items.Contains(text)) return;
+                obj.BeginUpdate();
+                obj.Items.Add(text);
+                obj.EndUpdate();
+            }
+        }
+
+        private void RemoveListBox(ListBox obj, string text)
+        {
+            if (obj.InvokeRequired)
+            {
+                RemoveListBoxCallback tcb = new RemoveListBoxCallback(RemoveListBox);
+                this.Invoke(tcb, new Object[] { obj, text });
+            }
+            else
+            {
+                if (!obj.Items.Contains(text)) return;
+                obj.BeginUpdate();
+                obj.Items.Remove(text);
+                obj.EndUpdate();
+            }
+        }
 
         private void SetText(Control obj, string text)
         {
@@ -64,7 +98,7 @@ namespace LMessenger
                 obj.Text = text;
             }
         }
-        
+
         private void SetAppendText(TextBoxBase obj, string text)
         {
             if (obj.InvokeRequired)
@@ -77,6 +111,8 @@ namespace LMessenger
                 obj.AppendText(text);
             }
         }
+
+        #endregion 
 
         /// <summary>
         /// clicked the connect button
@@ -92,15 +128,14 @@ namespace LMessenger
                 {
                     this.thread = new Thread(new ThreadStart(Recieve));
                     RegisterOnServer();
+                    this.ToggleElements();
                     this.thread.Start();
                 }
             }
             else
             {
                 this.Shutdown();
-            }
-
-            this.ToggleElements();
+            }            
         }
 
         /// <summary>
@@ -135,10 +170,11 @@ namespace LMessenger
 
         private void EstablishConnection()
         {
-            this.labelStatus.Text = "Connecting...";
+            this.SetText(this.labelStatus, "Connecting...");
 
             try
             {
+                //TODO: clean up here
                 IPAddress ipAdd = Dns.GetHostEntry(Dns.GetHostName()).AddressList[0];
                 IPEndPoint ipEnd = new IPEndPoint(ipAdd, Convert.ToInt32(this.txtBoxServerPort.Text));
                 IPAddress testIP = IPAddress.Parse(this.txtBoxServerIP.Text);
@@ -152,8 +188,8 @@ namespace LMessenger
             }
             catch(Exception e)
             {
-                Console.WriteLine(e);
-                this.labelStatus.Text = "ERROR: Could not connect to server.";
+                MessageBox.Show("Unable to Connect.\n\nError: " + e, "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop);
+                this.SetText(this.labelStatus, "ERROR: Could not connect to server.");
                 this.Shutdown();
             }
         }
@@ -163,12 +199,11 @@ namespace LMessenger
             try
             {
                 this.Message(EMessageCode.HandShake, this.txtBoxPassword.Text);
-                //this.Recieve();
             }
             catch(Exception e)
             {
-                Console.WriteLine(e);
-                this.labelStatus.Text = "ERROR: Could not register to server.";
+                MessageBox.Show("ERROR: Could not register to server.\n\nError: " + e, "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop);
+                this.SetText(this.labelStatus, "ERROR: Could not register to server.");
             }
         }
 
@@ -182,8 +217,8 @@ namespace LMessenger
             }
             catch(Exception e)
             {
-                Console.WriteLine(e);
-                this.labelStatus.Text = "ERROR: Could not contact the server.";
+                this.SetText(this.labelStatus, "ERROR: Failed to send message.");
+                MessageBox.Show("ERROR: Failed to send message.\n\nError: " + e, "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop);
             }
         }
 
@@ -194,8 +229,7 @@ namespace LMessenger
 
         private void Recieve()
         {
-            bool isLooping = true;
-            while (true)
+            while (this.isConnected)
             {
                 try
                 {
@@ -209,105 +243,93 @@ namespace LMessenger
                     {
                         case EMessageCode.None:
                             {
-                                isLooping = false;
+                                
                             }
                             break;
                         case EMessageCode.HandShake:
                             {
                                 this.SetText((Control)this.labelStatus, "Connected...");
                                 this.SetText((Control)this,  "LMessenger - Connected as: " + this.txtBoxUsername.Text);
-                                //this.labelStatus.Text = "Connected...";
-                                //this.Text = "LMessenger - Connected as: " + this.txtBoxUsername.Text;
                                 this.LoggingStart();
-                                isLooping = false;
+                                
                             }
                             break;
                         case EMessageCode.GreatSuccess:
                             {
-                                this.labelStatus.Text = "Great Success...";
-                                isLooping = false;
+                                this.SetText((Control)this.labelStatus, "Great Success...");
                             }
                             break;
                         case EMessageCode.InvalidUsername:
                             {
-                                this.labelStatus.Text = "Invalid username...";
+                                this.SetText((Control)this.labelStatus, "Invalid Username...");
                                 MessageBox.Show("Invalid Username", "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop);
-                                isLooping = false;
+                                this.isConnected = false;
                             }
                             break;
                         case EMessageCode.InvalidPassword:
                             {
-                                this.labelStatus.Text = "Invalid password...";
+                                this.SetText((Control)this.labelStatus, "Invalid Password...");
                                 MessageBox.Show("Invalid password", "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop);
-                                isLooping = false;
+                                this.isConnected = false;                        
                             }
                             break;
                         case EMessageCode.MessageAll:
                             {
                                 this.SetAppendText(this.txtBoxDisplay, tokens[1] + " says: " + tokens[2] + "\n");
-                                //this.txtBoxDisplay.AppendText(tokens[1] + " says: " + tokens[2] + "\n");
-                                this.writer.WriteLine(tokens[1] + "\n");
-                                isLooping = false;
+                                this.writer.WriteLine(tokens[1] + " says: " + tokens[2] + "\n");
                             }
                             break;
                         case EMessageCode.MessageWhisper:
                             {
-                                this.txtBoxDisplay.AppendText("Whisper from " + tokens[1] + ": " + tokens[3] + "\n");
-                                this.writer.WriteLine("Whisper from " + tokens[1] + ": " + tokens[3] + "\n");
-                                isLooping = false;
+                                this.SetAppendText(this.txtBoxDisplay,"Whisper from " + tokens[1] + ": " + tokens[2] + "\n");
+                                this.writer.WriteLine("Whisper from " + tokens[1] + ": " + tokens[2] + "\n");
                             }
                             break;
                         case EMessageCode.MessageFile:
                             {
-                                isLooping = false;
+                                
                             }
                             break;
                         case EMessageCode.ServerCommand:
                             {
-                                isLooping = false;
+                                
                             }
                             break;
                         case EMessageCode.DropConnection:
                             {
-                                MessageBox.Show("Lost Connection.", tokens[1], MessageBoxButtons.OK, MessageBoxIcon.Stop);
-                                this.Shutdown();
-                                isLooping = false;
+                                MessageBox.Show("Lost Connection\n" + tokens[2], "Kicked", MessageBoxButtons.OK, MessageBoxIcon.Stop);
+                                this.isConnected = false;
                             }
                             break;
                         case EMessageCode.UserDisconnect:
                             {
-                                this.listBoxUsers.BeginUpdate();
-                                this.listBoxUsers.Items.Remove(tokens[1]);
-                                this.listBoxUsers.EndUpdate();
-                                this.txtBoxDisplay.AppendText(tokens[1] + " has left the server.\n");
+                                this.RemoveListBox(this.listBoxUsers, tokens[1]);
+                                this.SetAppendText(this.txtBoxDisplay, tokens[1] + " has left the server.\n");
                                 this.writer.WriteLine(tokens[1] + " has left the server.\n");
-                                isLooping = false;
                             }
                             break;
                         case EMessageCode.UserConnected:
                             {
-                                this.listBoxUsers.BeginUpdate();
-                                this.listBoxUsers.Items.Add(tokens[1]);
-                                this.listBoxUsers.EndUpdate();
-                                this.txtBoxDisplay.AppendText(tokens[1] + " has joined the server.\n");
+                                this.AddListBox(this.listBoxUsers, tokens[1]);
+                                this.SetAppendText(this.txtBoxDisplay, tokens[1] + " has joined the server.\n");
                                 this.writer.WriteLine(tokens[1] + " has joined the server.\n");
-                                isLooping = false;
                             }
                             break;
                     }
                 }
                 catch (Exception e)
                 {
-                    
+                    Console.WriteLine(e);
                 }
             }
+            this.Shutdown();
         }
 
         private void LoggingStart()
         {
             if (!Directory.Exists("logs"))
                 Directory.CreateDirectory("logs");
-            string fname = "logs\\" + DateTime.Now.ToString("ddMMyyHHmm") + ".txt";
+            string fname = "logs\\" + DateTime.Now.ToString("dd - MMM - yyyy - HHmm") + ".txt";
             this.writer = new StreamWriter(new FileStream(fname, FileMode.OpenOrCreate,
                 FileAccess.Write));
         }
@@ -368,6 +390,14 @@ namespace LMessenger
 
         private void Shutdown()
         {
+            if (this.netStream != null)
+            {
+                this.Message(EMessageCode.UserDisconnect, "Bye.");
+                this.netStream.Dispose();
+                this.netStream.Close();
+                this.netStream = null;
+            }
+
             if(this.reader != null)
             {
                 this.reader.Dispose();
@@ -382,13 +412,7 @@ namespace LMessenger
                 this.writer = null;
             }
 
-            if (this.netStream != null)
-            {
-                this.Message(EMessageCode.UserDisconnect, "Bye.");
-                this.netStream.Dispose();
-                this.netStream.Close();
-                this.netStream = null;
-            }
+            
 
             if (this.client != null)
             {
@@ -403,15 +427,12 @@ namespace LMessenger
                 this.thread = null;
             }
 
-
-            //if (this.bgThread != null)
-            //{
-            //    if (this.bgThread.IsAlive)
-            //        this.bgThread.Abort();
-            //    this.bgThread = null;
-            //}
-
-            this.btnConnect.Text = "Connect";
+            this.isConnected = false;
+            this.ToggleElements();
+            this.SetText(this.btnConnect, "Connect");
+            this.SetText(this.labelStatus, "Disconnected...");
+           
+            
         }
 
         protected override void OnClosing(CancelEventArgs e)
@@ -422,5 +443,6 @@ namespace LMessenger
         }
 
         #endregion
+
     }
 }
