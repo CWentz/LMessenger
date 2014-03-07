@@ -387,7 +387,7 @@ namespace LMessenger
                 //start stream
                 using (FileStream write = new FileStream(fname, FileMode.Create, FileAccess.ReadWrite))
                 {
-                    while ((value = this.client.Client.Receive(data, 0, max, SocketFlags.None)) > 0 && len > 0)
+                    while ((value = this.client.Client.Receive(data, 0, messageSize, SocketFlags.None)) > 0 && len > 0)
                     {
                         //increment the counter.
                         counter += interval;
@@ -444,14 +444,11 @@ namespace LMessenger
 
             try
             {
-                //TODO: clean up here
-                //IPAddress ipAdd = Dns.GetHostEntry(Dns.GetHostName()).AddressList[0];
-                //IPEndPoint ipEnd = new IPEndPoint(ipAdd, Convert.ToInt32(this.txtBoxServerPort.Text));
-                //IPAddress testIP = IPAddress.Parse(this.txtBoxServerIP.Text);
-                int port = Convert.ToInt32(this.txtBoxServerPort.Text);
-
-                this.client = new TcpClient(this.txtBoxServerIP.Text, Convert.ToInt32(port));
+                //establish new client
+                this.client = new TcpClient(this.txtBoxServerIP.Text, Convert.ToInt32(this.txtBoxServerPort.Text));
+                //stream for quick reference
                 this.netStream = client.GetStream();
+                //remove delay
                 this.client.NoDelay = true;
                 this.reader = new StreamReader(this.netStream);
                 this.isConnected = true;
@@ -460,59 +457,77 @@ namespace LMessenger
             }
             catch(Exception e)
             {
-                MessageBox.Show("Unable to Connect.\n\nError: " + e, "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop);
+                Console.WriteLine("ERROR: Could not connect to server.");
                 this.SetText(this.labelStatus, "ERROR: Could not connect to server.");
+                //call shutdown to reset all values
                 this.Shutdown();
             }
         }
 
+        /// <summary>
+        /// binds with server and sends login data
+        /// </summary>
         private void RegisterOnServer()
         {
             try
             {
+                //message that you want to connect
                 this.Message(EMessageCode.HandShake, this.txtBoxPassword.Text);
             }
             catch(Exception e)
             {
-                MessageBox.Show("ERROR: Could not register to server.\n\nError: " + e, "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop);
+                Console.WriteLine("ERROR: Could not register to server.\n\nError: " + e);
                 this.SetText(this.labelStatus, "ERROR: Could not register to server.");
+                this.Shutdown();
             }
         }
 
+        /// <summary>
+        /// sends a message over network through server
+        /// </summary>
+        /// <param name="code">type of message</param>
+        /// <param name="message">message contents</param>
         private void Message(EMessageCode code, string message)
         {
             try
             {
+                //create string for message
                 string m = ((char)code) + "|" + this.txtBoxUsername.Text + "|" + message + "|";
+                //load string into buffer
                 Byte[] buffer = System.Text.Encoding.ASCII.GetBytes(m.ToCharArray());
 
-
+                //encrypt buffer
                 buffer = this.EncrptyDecrypt(buffer);
 
-                //for (int i = 0; i < outBytes.Length; i++)
-                //{
-                //    outBytes[i] = EncrptyDecrypt(outBytes[i]);
-                //}
-
+                //write buffer to stream
                 this.netStream.Write(buffer, 0, buffer.Length);
             }
             catch(Exception e)
             {
                 this.SetText(this.labelStatus, "ERROR: Failed to send message.");
-                MessageBox.Show("ERROR: Failed to send message.\n\nError: " + e, "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop);
+                Console.WriteLine("ERROR: Unable to send message");
             }
         }
 
+        /// <summary>
+        /// encrypts message by inverting bits
+        /// </summary>
+        /// <param name="buffer">buffer to encrypr</param>
+        /// <returns></returns>
         private Byte[] EncrptyDecrypt(Byte[] buffer)
         {
+            //load buffer into temp buffer;
             Byte[] buf = new Byte[buffer.Length];
+            //get the length of buffer before null elements
             int a = 0;
             for (a = 0; a < buffer.Length && buffer[a] != '\0'; a++ ) { }
             
+            //reduce a one more to get element before nulls
             a--;
             if (a < 1)
                 a = 1;
 
+            //loop through buffer and invert bits
             for (int i = 0; i < buffer.Length && buffer[i] != '\0'; i++)
             {
                 this.SetProgressBar(this.progressBar, (int)((i / (float)a) * 100));
@@ -520,47 +535,63 @@ namespace LMessenger
                 buf[i] = (Byte)~b; 
             }
 
-
+            //reset progress bar
             this.SetProgressBar(this.progressBar, 0);
+
+            //return the buffer
             return buf;
         }
 
-
+        /// <summary>
+        /// sends private message
+        /// </summary>
+        /// <param name="target"></param>
+        /// <param name="message"></param>
         private void Whisper(string target, string message)
         {
             this.Message(EMessageCode.MessageWhisper, target + '|' + message);
+            this.UpdateReader(target + " : " + message);
         }
 
+        /// <summary>
+        /// primary loop
+        /// </summary>
         private void Recieve()
         {
             while (this.isConnected)
             {
                 try
                 {
+                    //if you were kicked get out.
                     if (this.wasKicked) 
                         return;
 
+                    //create buffer
                     Byte[] buffer = new Byte[messageSize];
-                    
+                    //read bufer
                     this.netStream.Read(buffer, 0, buffer.Length);
 
+                    //encrypt buffer
                     buffer = this.EncrptyDecrypt(buffer);
 
+                    //set buffer to string
                     string message = System.Text.Encoding.ASCII.GetString(buffer);
 
+                    //split word up into tokens
                     string[] tokens = message.Split(new Char[] { '|' });
 
 
-
+                    //go through switch
                     switch ((EMessageCode)tokens[0][0])
                     {
                         case EMessageCode.None:
                             {
-                                
+                                //nothing
                             }
                             break;
                         case EMessageCode.HandShake:
                             {
+                                ///connecting to server
                                 this.SetText((Control)this.labelStatus, "Connected...");
                                 this.SetText((Control)this,  "LMessenger - Connected as: " + this.txtBoxUsername.Text);
                                 this.LoggingStart();
@@ -568,6 +599,7 @@ namespace LMessenger
                             break;
                         case EMessageCode.GreatSuccess:
                             {
+                                //success
                                 this.SetText((Control)this.labelStatus, "Great Success...");
                             }
                             break;
@@ -644,6 +676,9 @@ namespace LMessenger
             this.Shutdown();
         }
 
+        /// <summary>
+        /// activates logging
+        /// </summary>
         private void LoggingStart()
         {
             if (!Directory.Exists("logs"))
@@ -683,23 +718,45 @@ namespace LMessenger
 
         #region text changed
 
+        /// <summary>
+        /// monitors character changes in text field
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void txtBoxServerIP_TextChanged(object sender, EventArgs e)
         {
             this.EnableConnectBtn();
         }
-
+        /// <summary>
+        /// monitors character changes in text field
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void txtBoxServerPort_TextChanged(object sender, EventArgs e)
         {
+            //checks state of text fields, sets connect fo false if all empty
             this.EnableConnectBtn();
         }
 
+        /// <summary>
+        /// monitors character changes in text field
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void txtBoxUsername_TextChanged(object sender, EventArgs e)
         {
+            //checks state of text fields, sets connect fo false if all empty
             this.EnableConnectBtn();
         }
 
+        /// <summary>
+        /// monitors character changes in text field
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void txtBoxPassword_TextChanged(object sender, EventArgs e)
         {
+            //checks state of text fields, sets connect fo false if all empty
             this.EnableConnectBtn();
         }
 
@@ -707,6 +764,9 @@ namespace LMessenger
 
         #region Close / Disconnect
 
+        /// <summary>
+        /// cleans up anything with networking
+        /// </summary>
         private void Shutdown()
         {
             
@@ -755,8 +815,13 @@ namespace LMessenger
             this.SetText(this.labelStatus, "Disconnected..."); 
         }
 
+        /// <summary>
+        /// when closing do this stuff
+        /// </summary>
+        /// <param name="e"></param>
         protected override void OnClosing(CancelEventArgs e)
         {
+            //ensure network is shutdown
             this.Shutdown();
 
             if (this.thread != null)

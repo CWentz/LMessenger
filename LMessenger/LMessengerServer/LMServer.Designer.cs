@@ -35,6 +35,8 @@
             this.listBoxUsers = new System.Windows.Forms.ListBox();
             this.btnSendCommand = new System.Windows.Forms.Button();
             this.comboBoxMessageType = new System.Windows.Forms.ComboBox();
+            this.txtBoxPort = new System.Windows.Forms.TextBox();
+            this.label2 = new System.Windows.Forms.Label();
             this.SuspendLayout();
             // 
             // btnConnect
@@ -96,11 +98,30 @@
             this.comboBoxMessageType.Sorted = true;
             this.comboBoxMessageType.TabIndex = 6;
             // 
+            // txtBoxPort
+            // 
+            this.txtBoxPort.Location = new System.Drawing.Point(129, 15);
+            this.txtBoxPort.Name = "txtBoxPort";
+            this.txtBoxPort.Size = new System.Drawing.Size(100, 20);
+            this.txtBoxPort.TabIndex = 8;
+            this.txtBoxPort.Text = "1337";
+            // 
+            // label2
+            // 
+            this.label2.AutoSize = true;
+            this.label2.Location = new System.Drawing.Point(94, 18);
+            this.label2.Name = "label2";
+            this.label2.Size = new System.Drawing.Size(29, 13);
+            this.label2.TabIndex = 10;
+            this.label2.Text = "Port:";
+            // 
             // LMServer
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(671, 464);
+            this.Controls.Add(this.label2);
+            this.Controls.Add(this.txtBoxPort);
             this.Controls.Add(this.comboBoxMessageType);
             this.Controls.Add(this.btnSendCommand);
             this.Controls.Add(this.listBoxUsers);
@@ -124,6 +145,8 @@
         private System.Windows.Forms.ListBox listBoxUsers;
         private System.Windows.Forms.Button btnSendCommand;
         private System.Windows.Forms.ComboBox comboBoxMessageType;
+        private System.Windows.Forms.TextBox txtBoxPort;
+        private System.Windows.Forms.Label label2;
     }
 }
 

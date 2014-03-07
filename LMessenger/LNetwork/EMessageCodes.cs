@@ -1,5 +1,9 @@
 ﻿namespace LNetwork
 {
+    
+    /// <summary>
+    /// sent as a prefix of messages so the server knows what message it is
+    /// </summary>
     public enum EMessageCode : byte
     {
         None = 0,
@@ -18,4 +22,10 @@
         UsersOnline = 11
     }
 
+    public enum EMessageMode
+    {
+        All = 4,
+        Whisper = 5,
+        File = 6
+    }
 }

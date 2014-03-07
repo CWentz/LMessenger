@@ -39,12 +39,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="EConnectionState.cs" />
     <Compile Include="EMessageCodes.cs" />
-    <Compile Include="EMessageMode.cs" />
     <Compile Include="LClient.cs" />
-    <Compile Include="LConnection.cs" />
-    <Compile Include="LServer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
