@@ -1,4 +1,6 @@
-﻿using LNetwork;
+﻿#define DEBUG_SERVER
+
+using LNetwork;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -15,19 +17,22 @@ using System.Windows.Forms;
 
 namespace LMessenger
 {
+    /// <summary>
+    /// client form for connecting to server
+    /// </summary>
     public partial class LMClient : Form
     {
 
         #region declarations
         private bool isConnected = false;
-
+        private bool wasKicked = false;
         private NetworkStream netStream;
         private StreamReader reader;
         private StreamWriter writer;
         private TcpClient client;
         private Thread thread;
         private EMessageMode mode = EMessageMode.All;
-
+        private const int messageSize = 1024;
 
         #endregion
 
@@ -39,20 +44,53 @@ namespace LMessenger
             InitializeComponent();
             this.EnableConnectBtn();
             this.ToggleElements();
+
+
+            //adding combo box items for message types
             this.comboBoxMessageType.BeginUpdate();
             this.comboBoxMessageType.Items.Add(EMessageMode.All.ToString());
             this.comboBoxMessageType.Items.Add(EMessageMode.Whisper.ToString());
             this.comboBoxMessageType.Items.Add(EMessageMode.File.ToString());
             this.comboBoxMessageType.EndUpdate();
+
             this.comboBoxMessageType.SelectedItem = this.comboBoxMessageType.Items[0];
+            if (!Directory.Exists("RecievedFiles"))
+                Directory.CreateDirectory("RecievedFiles");
+
+            //got tired of entering in values
+#if DEBUG_SERVER
+
+            this.txtBoxPassword.Text = "pass";
+            this.txtBoxServerIP.Text = "192.168.2.101";
+            this.txtBoxUsername.Text = "User";
+            this.txtBoxServerPort.Text = "1337";
+            this.btnConnect.Enabled = true;
+
+#endif
         }
 
-        #region delegates
+        #region windows form methods
 
+        #region delegates
+        delegate void SetProgressBarCallback(ProgressBar obj, int value);
+        delegate void SetBoolCallback(Control obj, bool value);
         delegate void SetTextCallback(Control obj, string text);
         delegate void AddListBoxCallback(ListBox obj, string text);
         delegate void RemoveListBoxCallback(ListBox obj, string text);
         delegate void SetAppendTextCallback(TextBoxBase obj, string text);
+
+        private void SetProgressBar(ProgressBar obj, int value)
+        {
+            if (obj.InvokeRequired)
+            {
+                SetProgressBarCallback tcb = new SetProgressBarCallback(SetProgressBar);
+                this.Invoke(tcb, new Object[] { obj, value });
+            }
+            else
+            {
+                obj.Value = value;
+            }
+        }
 
         private void AddListBox(ListBox obj, string text)
         {
@@ -99,6 +137,19 @@ namespace LMessenger
             }
         }
 
+        private void SetBool(Control obj, bool value)
+        {
+            if (obj.InvokeRequired)
+            {
+                SetBoolCallback tcb = new SetBoolCallback(SetBool);
+                this.Invoke(tcb, new Object[] { obj, value });
+            }
+            else
+            {
+                obj.Enabled = value;
+            }
+        }
+
         private void SetAppendText(TextBoxBase obj, string text)
         {
             if (obj.InvokeRequired)
@@ -114,6 +165,7 @@ namespace LMessenger
 
         #endregion 
 
+
         /// <summary>
         /// clicked the connect button
         /// </summary>
@@ -121,19 +173,26 @@ namespace LMessenger
         /// <param name="e"></param>
         private void btnConnect_Click(object sender, EventArgs e)
         {
+            //if not connected establish tonnection
             if(!this.isConnected)
             {
                 this.EstablishConnection();
+
+                //if connection successful register on server
                 if(this.isConnected)
                 {
                     this.thread = new Thread(new ThreadStart(Recieve));
+                    //log into server
                     RegisterOnServer();
+                    //toggle ui
                     this.ToggleElements();
+                    //start recieve thread
                     this.thread.Start();
                 }
             }
             else
             {
+                //shutdown connection
                 this.Shutdown();
             }            
         }
@@ -145,29 +204,240 @@ namespace LMessenger
         /// <param name="e"></param>
         private void btnSendMessage_Click(object sender, EventArgs e)
         {
+            this.MessageButtonActivated();
+        }
+
+        /// <summary>
+        /// message text box handler
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void txtBoxMessage_KeyDown(object sender, KeyEventArgs e)
+        {
+            //if enter was not hit return
+            if (e.KeyCode != Keys.Return) return;
+
+            //activate message button
+            this.MessageButtonActivated();
+        }
+
+        #endregion
+
+
+        /// <summary>
+        /// Updates reader text box and appends log.
+        /// </summary>
+        /// <param name="text"></param>
+        private void UpdateReader(string text)
+        {
+            this.SetAppendText(this.txtBoxDisplay, text + "\n");
+            this.writer.Write(text + "\n");
+        }
+
+        /// <summary>
+        /// message button activated. checks mode and sends messages
+        /// </summary>
+        private void MessageButtonActivated()
+        {
+            //check what mode the combo box is using
             switch (this.comboBoxMessageType.SelectedItem.ToString())
             {
                 case "All":
                     {
+                        //sends the message to the server for all to see
                         this.Message(EMessageCode.MessageAll, this.txtBoxMessage.Text);
                     }
                     break;
                 case "Whisper":
                     {
-                        this.Message(EMessageCode.MessageWhisper, this.txtBoxMessage.Text);
+                        //tests if a client is selected
+                        string temp = GetSelectedClient();
+                        if (temp == "") return;
+
+                        //whispers that client only
+                        this.Whisper(temp, this.txtBoxMessage.Text);
                     }
                     break;
                 case "File":
                     {
-                        this.Message(EMessageCode.MessageFile, this.txtBoxMessage.Text);
+                        //tests if a client was selected
+                        string temp = GetSelectedClient();
+                        //return if no user selected or if you have yourself selected
+                        if (temp == "" || temp == this.txtBoxUsername.Text) return;
+
+                        //send a file to the user
+                        this.SendFile(this.txtBoxMessage.Text);
                     }
                     break;
             }
 
-            //this.txtBoxDisplay.AppendText(this.txtBoxUsername.Text + ": " +this.txtBoxMessage.Text + "\n");
-            this.txtBoxMessage.Text = "";
+            //reset message box text
+            this.SetText(this.txtBoxMessage, "");
         }
 
+        /// <summary>
+        /// sends a file to the selected user
+        /// </summary>
+        /// <param name="fileLocationPlusName"></param>
+        private void SendFile(string fileLocationPlusName)
+        {
+            //filename
+            string fname = fileLocationPlusName;
+            //gets user
+            string user = GetSelectedClient();
+            //redudant check 
+            if (user == "" || user == this.txtBoxUsername.Text) return;
+            
+
+            try
+            {
+                //file doesnt exist.
+                if (!File.Exists(fname))
+                    return;
+
+                //create buffer of 1kb
+                Byte[] buffer = new  Byte[messageSize];
+
+                //check the text box for the file to be sent, split the string.
+                string[] words = this.txtBoxMessage.Text.Split(new Char[] { '\\' });
+
+                //iterate to the last element of words;
+                int i = 0;
+                for (i = 0; i < words.Length; i++ ) { }
+
+                //start filestream
+                using (FileStream reader = new FileStream(fname, FileMode.Open, FileAccess.Read))
+                {
+                    //save length of the file
+                    long l = reader.Length;
+                    //v = value used for reading return of Read
+                    int v = 0;
+
+                    //send a message to the target user that you want to send a file to them.
+                    this.Message(EMessageCode.MessageFile, user + "|" + l + "|" + words[i - 1]);
+                    //pause for server to send message to other client
+                    System.Threading.Thread.Sleep(20);
+
+                    //calculate the interval for progress bar.
+                    float interval = (1.0f / reader.Length) * messageSize;
+                    //counter to be used with interval
+                    float counter = 0;
+
+                    //while the file reader has data continue
+                    while (( v = reader.Read(buffer, 0, messageSize)) > 0)
+                    {
+                        //increment my counter with interval
+                        counter += interval;
+
+                        //sets progress bar to teh counter value
+                        this.SetProgressBar(this.progressBar, (int)(counter * 100));
+
+                        //write buffer to the netstream.
+                        this.netStream.Write(buffer, 0, messageSize);
+                        //this.netStream.Flush();
+
+                        //if counter > 1 then too much data is being sent
+                        if (counter >= 1)
+                            break;
+
+                        //length -= amount of bytes transfered
+                        l -= v;
+                    }
+                    //moment of silence for a second.
+                    System.Threading.Thread.Sleep(1000);
+                    //ok get rid of it
+                    reader.Dispose();
+                }
+                //reset progress bar
+                this.SetProgressBar(this.progressBar, 0);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Error Sending file.\n" + e );
+            }
+        }
+
+        /// <summary>
+        /// recieves data sent and saves in recieved files.
+        /// </summary>
+        /// <param name="length">of file in bytes</param>
+        /// <param name="filename">name of file</param>
+        private void RecieveFile(long length, string filename)
+        {
+            //if file length is 0 do not pass go.
+            if (length == 0) return;
+
+            //destination folder
+            string fname = "RecievedFiles\\" + filename;
+
+
+            Byte[] data = new Byte[messageSize];
+            //length of file
+            long len = length;
+            //value of bytes completed.
+            int value = 0;
+            //percentage interval of completion each loop
+            float interval = (1.0f / length) * messageSize;
+            //counter for interval
+            float counter = 0;
+
+
+            try
+            {
+                //start stream
+                using (FileStream write = new FileStream(fname, FileMode.Create, FileAccess.ReadWrite))
+                {
+                    while ((value = this.client.Client.Receive(data, 0, max, SocketFlags.None)) > 0 && len > 0)
+                    {
+                        //increment the counter.
+                        counter += interval;
+                        //update progressbar.
+                        this.SetProgressBar(this.progressBar, (int)(counter * 100));
+
+                        //write data to buffer
+                        write.Write(data, 0, messageSize);
+                        //write buffer to disk
+                        write.Flush();
+
+                        //safety check
+                        if (counter >= 1)
+                            break;
+
+                        //decrease size of length by amount completed this loop
+                        len -= value;
+                    }
+                    //take a little nap
+                    System.Threading.Thread.Sleep(300);
+                    write.Close();
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Error Reciving file." + e);
+            }
+
+            //reset progress bar to 0.
+            this.SetProgressBar(this.progressBar, 0);
+        }
+
+        /// <summary>
+        /// checks the list box for selected user
+        /// </summary>
+        /// <returns></returns>
+        private string GetSelectedClient()
+        {
+            string selected = "";
+
+            //if user found return value 
+            if (this.listBoxUsers.SelectedIndex >= 0)
+                selected = (string)this.listBoxUsers.Items[this.listBoxUsers.SelectedIndex];
+
+            return selected;
+        }
+
+        /// <summary>
+        /// establish connection to server.
+        /// </summary>
         private void EstablishConnection()
         {
             this.SetText(this.labelStatus, "Connecting...");
@@ -175,15 +445,17 @@ namespace LMessenger
             try
             {
                 //TODO: clean up here
-                IPAddress ipAdd = Dns.GetHostEntry(Dns.GetHostName()).AddressList[0];
-                IPEndPoint ipEnd = new IPEndPoint(ipAdd, Convert.ToInt32(this.txtBoxServerPort.Text));
-                IPAddress testIP = IPAddress.Parse(this.txtBoxServerIP.Text);
+                //IPAddress ipAdd = Dns.GetHostEntry(Dns.GetHostName()).AddressList[0];
+                //IPEndPoint ipEnd = new IPEndPoint(ipAdd, Convert.ToInt32(this.txtBoxServerPort.Text));
+                //IPAddress testIP = IPAddress.Parse(this.txtBoxServerIP.Text);
                 int port = Convert.ToInt32(this.txtBoxServerPort.Text);
 
-                this.client = new TcpClient(this.txtBoxServerIP.Text, port);
+                this.client = new TcpClient(this.txtBoxServerIP.Text, Convert.ToInt32(port));
                 this.netStream = client.GetStream();
+                this.client.NoDelay = true;
                 this.reader = new StreamReader(this.netStream);
                 this.isConnected = true;
+                this.wasKicked = false;
                 this.btnConnect.Text = "Disconnect";
             }
             catch(Exception e)
@@ -212,8 +484,17 @@ namespace LMessenger
             try
             {
                 string m = ((char)code) + "|" + this.txtBoxUsername.Text + "|" + message + "|";
-                Byte[] outBytes = System.Text.Encoding.ASCII.GetBytes(m.ToCharArray());
-                this.netStream.Write(outBytes, 0, outBytes.Length);
+                Byte[] buffer = System.Text.Encoding.ASCII.GetBytes(m.ToCharArray());
+
+
+                buffer = this.EncrptyDecrypt(buffer);
+
+                //for (int i = 0; i < outBytes.Length; i++)
+                //{
+                //    outBytes[i] = EncrptyDecrypt(outBytes[i]);
+                //}
+
+                this.netStream.Write(buffer, 0, buffer.Length);
             }
             catch(Exception e)
             {
@@ -221,6 +502,29 @@ namespace LMessenger
                 MessageBox.Show("ERROR: Failed to send message.\n\nError: " + e, "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop);
             }
         }
+
+        private Byte[] EncrptyDecrypt(Byte[] buffer)
+        {
+            Byte[] buf = new Byte[buffer.Length];
+            int a = 0;
+            for (a = 0; a < buffer.Length && buffer[a] != '\0'; a++ ) { }
+            
+            a--;
+            if (a < 1)
+                a = 1;
+
+            for (int i = 0; i < buffer.Length && buffer[i] != '\0'; i++)
+            {
+                this.SetProgressBar(this.progressBar, (int)((i / (float)a) * 100));
+                byte b = (byte)buffer[i];
+                buf[i] = (Byte)~b; 
+            }
+
+
+            this.SetProgressBar(this.progressBar, 0);
+            return buf;
+        }
+
 
         private void Whisper(string target, string message)
         {
@@ -233,11 +537,20 @@ namespace LMessenger
             {
                 try
                 {
-                    Byte[] buffer = new Byte[1024];
+                    if (this.wasKicked) 
+                        return;
+
+                    Byte[] buffer = new Byte[messageSize];
+                    
                     this.netStream.Read(buffer, 0, buffer.Length);
+
+                    buffer = this.EncrptyDecrypt(buffer);
+
                     string message = System.Text.Encoding.ASCII.GetString(buffer);
 
                     string[] tokens = message.Split(new Char[] { '|' });
+
+
 
                     switch ((EMessageCode)tokens[0][0])
                     {
@@ -251,7 +564,6 @@ namespace LMessenger
                                 this.SetText((Control)this.labelStatus, "Connected...");
                                 this.SetText((Control)this,  "LMessenger - Connected as: " + this.txtBoxUsername.Text);
                                 this.LoggingStart();
-                                
                             }
                             break;
                         case EMessageCode.GreatSuccess:
@@ -287,7 +599,7 @@ namespace LMessenger
                             break;
                         case EMessageCode.MessageFile:
                             {
-                                
+                                this.RecieveFile(Convert.ToInt64(tokens[3]), tokens[4]);
                             }
                             break;
                         case EMessageCode.ServerCommand:
@@ -297,6 +609,8 @@ namespace LMessenger
                             break;
                         case EMessageCode.DropConnection:
                             {
+                                this.wasKicked = true;
+                                this.Shutdown();
                                 MessageBox.Show("Lost Connection\n" + tokens[2], "Kicked", MessageBoxButtons.OK, MessageBoxIcon.Stop);
                                 this.isConnected = false;
                             }
@@ -310,9 +624,14 @@ namespace LMessenger
                             break;
                         case EMessageCode.UserConnected:
                             {
-                                this.AddListBox(this.listBoxUsers, tokens[1]);
-                                this.SetAppendText(this.txtBoxDisplay, tokens[1] + " has joined the server.\n");
-                                this.writer.WriteLine(tokens[1] + " has joined the server.\n");
+                                this.AddListBox(this.listBoxUsers, tokens[2]);
+                                this.SetAppendText(this.txtBoxDisplay, tokens[2] + " has joined the server.\n");
+                                this.writer.WriteLine(tokens[2] + " has joined the server.\n");
+                            }
+                            break;
+                        case EMessageCode.UsersOnline:
+                            {
+                                this.AddListBox(this.listBoxUsers, tokens[2]);
                             }
                             break;
                     }
@@ -344,7 +663,7 @@ namespace LMessenger
                      this.txtBoxServerIP.Text != "" &&
                      this.txtBoxServerPort.Text != "";
 
-            this.btnConnect.Enabled = v;
+            this.SetBool(this.btnConnect, v);
         }
 
         /// <summary>
@@ -352,14 +671,14 @@ namespace LMessenger
         /// </summary>
         private void ToggleElements()
         {
-            this.txtBoxPassword.ReadOnly = this.isConnected;
-            this.txtBoxServerIP.ReadOnly = this.isConnected;
-            this.txtBoxUsername.ReadOnly = this.isConnected;
-            this.txtBoxServerPort.ReadOnly = this.isConnected;
-            this.txtBoxMessage.ReadOnly = !this.isConnected;
-            this.btnSendMessage.Enabled = this.isConnected;
-            this.comboBoxMessageType.Enabled = this.isConnected;
-            this.listBoxUsers.Enabled = this.isConnected;
+            this.SetBool(this.txtBoxPassword, !this.isConnected);
+            this.SetBool(this.txtBoxServerIP, !this.isConnected);
+            this.SetBool(this.txtBoxUsername, !this.isConnected);
+            this.SetBool(this.txtBoxServerPort, !this.isConnected);
+            this.SetBool(this.txtBoxMessage, this.isConnected);
+            this.SetBool(this.btnSendMessage, this.isConnected);
+            this.SetBool(this.comboBoxMessageType, this.isConnected);
+            this.SetBool(this.listBoxUsers, this.isConnected);
         }
 
         #region text changed
@@ -390,11 +709,14 @@ namespace LMessenger
 
         private void Shutdown()
         {
+            
             if (this.netStream != null)
             {
+                //if(!this.wasKicked)
                 this.Message(EMessageCode.UserDisconnect, "Bye.");
+                System.Threading.Thread.Sleep(50);
                 this.netStream.Dispose();
-                this.netStream.Close();
+                this.netStream.Close(100);
                 this.netStream = null;
             }
 
@@ -420,29 +742,34 @@ namespace LMessenger
                 this.client = null;
             }
 
-            if(this.thread != null)
-            {
-                if(this.thread.IsAlive)
-                    this.thread.Abort();
-                this.thread = null;
-            }
-
             this.isConnected = false;
             this.ToggleElements();
-            this.SetText(this.btnConnect, "Connect");
-            this.SetText(this.labelStatus, "Disconnected...");
-           
+
+
+            for(int i = this.listBoxUsers.Items.Count - 1; i >= 0; i--)
+            {
+                this.RemoveListBox(this.listBoxUsers, this.listBoxUsers.Items[i].ToString());
+            }
             
+            this.SetText(this.btnConnect, "Connect");
+            this.SetText(this.labelStatus, "Disconnected..."); 
         }
 
         protected override void OnClosing(CancelEventArgs e)
         {
             this.Shutdown();
 
+            if (this.thread != null)
+            {
+                if (this.thread.IsAlive)
+                    this.thread.Abort();
+                this.thread = null;
+            }
             base.OnClosing(e);
         }
 
         #endregion
 
+        
     }
 }

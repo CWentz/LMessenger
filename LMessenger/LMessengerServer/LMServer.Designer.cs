@@ -33,7 +33,6 @@
             this.txtBoxReader = new System.Windows.Forms.TextBox();
             this.txtBoxCommand = new System.Windows.Forms.TextBox();
             this.listBoxUsers = new System.Windows.Forms.ListBox();
-            this.label1 = new System.Windows.Forms.Label();
             this.btnSendCommand = new System.Windows.Forms.Button();
             this.comboBoxMessageType = new System.Windows.Forms.ComboBox();
             this.SuspendLayout();
@@ -56,37 +55,30 @@
             this.txtBoxReader.Name = "txtBoxReader";
             this.txtBoxReader.ReadOnly = true;
             this.txtBoxReader.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
-            this.txtBoxReader.Size = new System.Drawing.Size(370, 366);
+            this.txtBoxReader.Size = new System.Drawing.Size(442, 366);
             this.txtBoxReader.TabIndex = 1;
             // 
             // txtBoxCommand
             // 
-            this.txtBoxCommand.Location = new System.Drawing.Point(140, 424);
+            this.txtBoxCommand.Location = new System.Drawing.Point(13, 431);
             this.txtBoxCommand.Name = "txtBoxCommand";
-            this.txtBoxCommand.Size = new System.Drawing.Size(243, 20);
+            this.txtBoxCommand.Size = new System.Drawing.Size(393, 20);
             this.txtBoxCommand.TabIndex = 2;
+            this.txtBoxCommand.KeyDown += new System.Windows.Forms.KeyEventHandler(this.txtBoxCommand_KeyDown);
             // 
             // listBoxUsers
             // 
             this.listBoxUsers.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             this.listBoxUsers.FormattingEnabled = true;
-            this.listBoxUsers.Location = new System.Drawing.Point(390, 43);
+            this.listBoxUsers.HorizontalScrollbar = true;
+            this.listBoxUsers.Location = new System.Drawing.Point(461, 43);
             this.listBoxUsers.Name = "listBoxUsers";
-            this.listBoxUsers.Size = new System.Drawing.Size(120, 366);
+            this.listBoxUsers.Size = new System.Drawing.Size(198, 366);
             this.listBoxUsers.TabIndex = 3;
-            // 
-            // label1
-            // 
-            this.label1.AutoSize = true;
-            this.label1.Location = new System.Drawing.Point(517, 43);
-            this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(62, 13);
-            this.label1.TabIndex = 4;
-            this.label1.Text = "Commands:";
             // 
             // btnSendCommand
             // 
-            this.btnSendCommand.Location = new System.Drawing.Point(390, 422);
+            this.btnSendCommand.Location = new System.Drawing.Point(539, 429);
             this.btnSendCommand.Name = "btnSendCommand";
             this.btnSendCommand.Size = new System.Drawing.Size(120, 23);
             this.btnSendCommand.TabIndex = 5;
@@ -98,7 +90,7 @@
             // 
             this.comboBoxMessageType.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBoxMessageType.FormattingEnabled = true;
-            this.comboBoxMessageType.Location = new System.Drawing.Point(13, 424);
+            this.comboBoxMessageType.Location = new System.Drawing.Point(412, 431);
             this.comboBoxMessageType.Name = "comboBoxMessageType";
             this.comboBoxMessageType.Size = new System.Drawing.Size(121, 21);
             this.comboBoxMessageType.Sorted = true;
@@ -111,7 +103,6 @@
             this.ClientSize = new System.Drawing.Size(671, 464);
             this.Controls.Add(this.comboBoxMessageType);
             this.Controls.Add(this.btnSendCommand);
-            this.Controls.Add(this.label1);
             this.Controls.Add(this.listBoxUsers);
             this.Controls.Add(this.txtBoxCommand);
             this.Controls.Add(this.txtBoxReader);
@@ -131,7 +122,6 @@
         private System.Windows.Forms.TextBox txtBoxReader;
         private System.Windows.Forms.TextBox txtBoxCommand;
         private System.Windows.Forms.ListBox listBoxUsers;
-        private System.Windows.Forms.Label label1;
         private System.Windows.Forms.Button btnSendCommand;
         private System.Windows.Forms.ComboBox comboBoxMessageType;
     }

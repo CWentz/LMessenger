@@ -4,6 +4,7 @@
     {
         None = 0,
         HandShake = 90,
+        DirtyHand = 91,
         GreatSuccess = 1,
         InvalidUsername = 2,
         InvalidPassword = 3,
@@ -13,7 +14,8 @@
         ServerCommand = 7,
         DropConnection = 8,
         UserDisconnect = 9,
-        UserConnected = 10
-
+        UserConnected = 10,
+        UsersOnline = 11
     }
+
 }

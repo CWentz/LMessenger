@@ -17,20 +17,18 @@ namespace LMessengerServer
 {
     public partial class LMServer : Form
     {
+
+        #region declarations
         private bool isRunning = false;
         private const int port = 1337;
         private TcpListener listener;
-        //private List<LClient> clients;
         private Socket socket;
         private Thread thread;
         private Thread clientService;
         private StreamWriter logger;
         private Dictionary<string, string> credentials;
         private Dictionary<string, LClient> clientsDict;
-        /// <summary>
-        /// constructor
-        /// </summary>
-        /// 
+        #endregion
 
         public LMServer()
         {
@@ -139,6 +137,12 @@ namespace LMessengerServer
             this.listBoxUsers.Update();
         }
 
+        private void UpdateReader(string text)
+        {
+            this.logger.Write(text + Environment.NewLine);
+            this.SetAppendText(this.txtBoxReader, text + Environment.NewLine);
+        }
+
         /// <summary>
         /// clicked send command button
         /// </summary>
@@ -146,7 +150,10 @@ namespace LMessengerServer
         /// <param name="e"></param>
         private void btnSendCommand_Click(object sender, EventArgs e)
         {
-            if(this.isRunning)
+            if (!this.isRunning) return;
+
+           
+               
             switch(this.comboBoxMessageType.SelectedItem.ToString())
             {
                 case "All":
@@ -154,40 +161,63 @@ namespace LMessengerServer
                     break;
                 case "Whisper":
                     {
-                        string tempWhisper = "";
-                        foreach (KeyValuePair<string, LClient> entry in this.clientsDict)
-                        {
-                            if((string)this.listBoxUsers.Items[this.listBoxUsers.SelectedIndex] == entry.Value.LogData())
-                            {
-                                tempWhisper = entry.Key;
-                            }
-                        }
-                        if(this.clientsDict.ContainsKey(tempWhisper))
-                            this.SendToClient(this.clientsDict[tempWhisper], EMessageCode.MessageWhisper, this.txtBoxCommand.Text);
+                        LClient c = GetSelectedClient();
+                        if (c == null) return;
+
+                        this.SendToClient(c, EMessageCode.MessageWhisper, this.txtBoxCommand.Text);
                     }
                     break;
                 case "File":
                     break;
                 case "Kick":
                     {
-                        string tempWhisper = "";
-                        foreach (KeyValuePair<string, LClient> entry in this.clientsDict)
-                        {
-                            if ((string)this.listBoxUsers.Items[this.listBoxUsers.SelectedIndex] == entry.Value.LogData())
-                            {
-                                tempWhisper = entry.Key;
-                            }
-                        }
-                        if (this.clientsDict.ContainsKey(tempWhisper))
-                            this.SendToClient(this.clientsDict[tempWhisper], EMessageCode.DropConnection, this.txtBoxCommand.Text);
+                        LClient c = GetSelectedClient();
+                        if (c == null) return;
+
+                        this.SendToClient(c, EMessageCode.DropConnection, this.txtBoxCommand.Text);
                     }
                     break;
 
             }
-            this.SetAppendText(this.txtBoxReader, "Admin: "+ this.txtBoxCommand.Text + "\n");
-            this.logger.Write("Admin: " + this.txtBoxCommand.Text + "\n");
+
+            this.UpdateReader( this.comboBoxMessageType.SelectedItem.ToString() + " : Admin : "+ this.txtBoxCommand.Text + Environment.NewLine);
+
             System.Threading.Thread.Sleep(100);
             this.SetText(this.txtBoxCommand, "");    
+        }
+
+        private LClient GetSelectedClient()
+        {
+            string tempWhisper = "";
+            string selected = "";
+            if (this.listBoxUsers.SelectedIndex >= 0)
+                selected = (string)this.listBoxUsers.Items[this.listBoxUsers.SelectedIndex];
+
+            if (selected == "") return null;
+
+            foreach (KeyValuePair<string, LClient> entry in this.clientsDict)
+            {
+                if (selected == entry.Value.LogData())
+                {
+                    tempWhisper = entry.Key;
+                }
+            }
+            if (this.clientsDict.ContainsKey(tempWhisper))
+                return this.clientsDict[tempWhisper];
+            return null;
+        }
+
+        private Byte[] EncrptyDecrypt(Byte[] buffer)
+        {
+            Byte[] buf = new Byte[buffer.Length];
+
+            for (int i = 0; i < buffer.Length && buffer[i] != '\0'; i++)
+            {
+                byte b = (byte)buffer[i];
+                buf[i] = (Byte)~b; 
+            }
+
+            return buf;
         }
 
         /// <summary>
@@ -206,13 +236,12 @@ namespace LMessengerServer
                 Directory.CreateDirectory("logs");
             string fname = "logs\\" + DateTime.Now.ToString("dd - MMM - yyyy - HHmm") + ".txt";
             this.logger = new StreamWriter(new FileStream(fname, FileMode.OpenOrCreate,
-                FileAccess.Write));
+                FileAccess.ReadWrite));
         }
 
         private void DeployServer()
         {
             this.clientsDict = new Dictionary<string, LClient>();
-            //this.clients = new List<LClient>();
             this.credentials = new Dictionary<string, string>();
             this.LoadCredential();
             this.LoggingStart();
@@ -249,10 +278,18 @@ namespace LMessengerServer
         private void ServiceClient()
         {
             Socket c = this.socket;
+            bool loop = true;
 
-            while (true)
+            while (loop && c.Connected)
             {
-                this.Recieve(c);
+                try
+                {
+                    this.Recieve(c);
+                }
+                catch(Exception e)
+                {
+                    loop = false;
+                }
             }
         }
 
@@ -265,11 +302,20 @@ namespace LMessengerServer
                 {
                     Byte[] buffer = new Byte[2048];
                     client.Receive(buffer);
+
+                    buffer = this.EncrptyDecrypt(buffer);
+                    
                     string message = System.Text.Encoding.ASCII.GetString(buffer);
 
                     string[] tokens = message.Split(new Char[] { '|' });
 
-                    switch ((EMessageCode)tokens[0][0])
+                    EMessageCode code = (EMessageCode)tokens[0][0];
+
+
+                    if(code != EMessageCode.None)
+                        this.LogMessage(tokens);
+
+                    switch (code)
                     {
                         case EMessageCode.None:
                             {
@@ -284,26 +330,50 @@ namespace LMessengerServer
                                     //checks if the client name isn't already in use.
                                     if(!this.clientsDict.ContainsKey(tokens[1]))
                                     {
+                                        //get endpoint for creating an LClient
                                         EndPoint ep = client.RemoteEndPoint;
                                         LClient c = new LClient(tokens[1],ep,clientService, client);
 
+                                        //add client into dictionary
                                         this.clientsDict.Add(c.UserName, c);
+
+                                        //message client a handshake
                                         this.SendToClient(c, EMessageCode.HandShake, "Very nice");
-                                        //pause for the client to setup before receiving next message.
-                                        System.Threading.Thread.Sleep(500);
-                                        this.SendToAllClients(EMessageCode.UserConnected, c.UserName);
+                                        
+                                        //add the client data to the list box.
                                         this.AddListBox(this.listBoxUsers, c.LogData());
+
+                                        //update log reader
+                                        this.UpdateReader(c.UserName + " has Connected.");
+
+                                        //pause for the client to setup before receiving next message.
+                                        System.Threading.Thread.Sleep(250);
+                                        
+                                        //send messages to all connected clients that a new client is connected.
+                                        //also sends a message to the client that connected with all connected clients.
+                                        foreach(KeyValuePair<string,LClient> entry in this.clientsDict)
+                                        {
+                                            this.SendToClient(entry.Value, EMessageCode.UserConnected, c.UserName);
+                                            this.SendToClient(c, EMessageCode.UsersOnline, entry.Value.UserName);
+                                            System.Threading.Thread.Sleep(50);
+                                        }
                                     }
                                     else
                                     {
-                                        this.logger.Write("DOUBLE ACCESS:\nAttempting access: " + tokens[1] + "Current Logged in User: " + this.clientsDict[tokens[1]].MySocket.RemoteEndPoint.ToString() + "\nAttempting Access: " + client.RemoteEndPoint.ToString());
+                                        //mulitple users logged in with the name. rejects connection.
+                                        string doubleTemp = "DOUBLE ACCESS:\nAttempting access: " + tokens[1] + "Current Logged in User: " + this.clientsDict[tokens[1]].MySocket.RemoteEndPoint.ToString() + Environment.NewLine + "Attempting Access: " + client.RemoteEndPoint.ToString();
+                                        //log warning added
+                                        this.UpdateReader(doubleTemp);
                                         byte[] bufferUser = System.Text.Encoding.ASCII.GetBytes((((byte)EMessageCode.InvalidUsername) + "|Admin|User name in use.").ToCharArray());
                                         client.Send(bufferUser, bufferUser.Length, 0);
                                     }
                                 }
                                 else
                                 {
-                                    this.logger.Write("INVALID PASSWORD: \n" + "User: " +tokens[1] + "\nIP: " + client.RemoteEndPoint.ToString());
+                                    //user tried to log in with invalid password. rejects connection obviously.
+                                    string passTemp = "INVALID PASSWORD: \n" + "User: " + tokens[1] + Environment.NewLine + "IP: " + client.RemoteEndPoint.ToString();
+                                    //log warning added
+                                    this.UpdateReader(passTemp);
                                     byte[] bufferPass = System.Text.Encoding.ASCII.GetBytes((((byte)EMessageCode.InvalidPassword) + "|Admin|Invalid password.").ToCharArray());
                                     client.Send(bufferPass, bufferPass.Length, 0);
                                 }
@@ -330,27 +400,29 @@ namespace LMessengerServer
                         case EMessageCode.MessageAll:
                             {
                                 string m = "";
-                                for(int i = 1; i < tokens.Length; i++)
+                                
+                                for(int i = 2; i < tokens.Length - 1; i++)
                                 {
                                     m += tokens[i] + "|";
                                 }
-                                m += "\n";
+
                                 this.RelayToAllClients(EMessageCode.MessageAll, tokens[1], m);
-                                this.SetAppendText(this.txtBoxReader, m);
-                                this.logger.WriteLine(m);
+
                                 isLooping = false;
                             }
                             break;
                         case EMessageCode.MessageWhisper:
                             {
                                 string m = "";
-                                for (int i = 2; i < tokens.Length; i++)
+
+                                for (int i = 2; i < tokens.Length - 1; i++)
                                 {
                                     m += tokens[i] + "|";
                                 }
-                                m += "\n";
-                                this.SetAppendText(this.txtBoxReader, tokens[1] + " : " + client.RemoteEndPoint.ToString() + " whispers to " + tokens[2] + ": " + m);
-                                this.logger.WriteLine(tokens[1] + " : " + client.RemoteEndPoint.ToString() + " whispers to " + tokens[2] + ": " + m + "\n");
+
+                                //this.UpdateReader();
+                                //this.SetAppendText(this.txtBoxReader, tokens[1] + " : " + client.RemoteEndPoint.ToString() + " whispers to " + tokens[2] + ": " + m);
+                                //this.logger.WriteLine(tokens[1] + " : " + client.RemoteEndPoint.ToString() + " whispers to " + tokens[2] + ": " + m + Environment.NewLine);
                                 if (this.clientsDict.ContainsKey(tokens[2]))
                                 {
                                     this.RelayToClient(this.clientsDict[tokens[2]], EMessageCode.MessageWhisper, tokens[1], m);
@@ -360,6 +432,8 @@ namespace LMessengerServer
                             break;
                         case EMessageCode.MessageFile:
                             {
+                                this.RelayFile(this.clientsDict[tokens[1]], this.clientsDict[tokens[2]], Convert.ToInt64(tokens[3]), tokens[4]);
+                                //this.RecieveFile(this.clientsDict[tokens[1]], this.clientsDict[tokens[2]], Convert.ToInt64(tokens[3]), tokens[4]);
                                 isLooping = false;
                             }
                             break;
@@ -376,17 +450,20 @@ namespace LMessengerServer
                             break;
                         case EMessageCode.UserDisconnect:
                             {
-                                this.SendToAllClients(EMessageCode.UserDisconnect, tokens[1]);
-                                this.SetAppendText(this.txtBoxReader, tokens[1] + " has left the server.\n");
-                                this.logger.WriteLine(tokens[1] + " has left the server.\n");
-
+                                this.RelayToAllClients(EMessageCode.UserDisconnect, tokens[1], "bye bye\n");
+                                this.UpdateReader(tokens[1] + " has left the server.");
+                                if (this.clientsDict.ContainsKey(tokens[1]))
+                                {
+                                    this.RemoveListBox(this.listBoxUsers, this.clientsDict[tokens[1]].LogData());
+                                    this.clientsDict[tokens[1]].Shutdown();
+                                    this.clientsDict.Remove(tokens[1]);
+                                }
                                 isLooping = false;
                             }
                             break;
                         case EMessageCode.UserConnected:
                             {
-                                this.SetAppendText(this.txtBoxReader, tokens[1] + " has joined the server.\n");
-                                this.logger.WriteLine(tokens[1] + " has joined the server.\n");
+                                this.UpdateReader(tokens[1] + " has joined the server.");
                                 isLooping = false;
                             }
                             break;
@@ -395,12 +472,30 @@ namespace LMessengerServer
                 catch (Exception e)
                 {
                     Console.WriteLine(e);
+                    isLooping = false;
                 }
             }
         }
 
+        private void LogMessage(string[] inputMessage)
+        {
+            string tempM = "";
+
+            tempM += ((EMessageCode)inputMessage[0][0]).ToString() + " : ";
+
+            for(int i = 1; i < inputMessage.Length - 2; i++)
+            {
+                tempM += inputMessage[i] + " : ";
+            }
+            tempM += inputMessage[inputMessage.Length - 2];
+
+            this.UpdateReader(tempM);
+        }
+
         private void SendToAllClients(EMessageCode code, string message)
         {
+            if (this.clientsDict == null || this.clientsDict.Count == 0) return;
+
             foreach(KeyValuePair<string,LClient> entry in this.clientsDict)
             {
                 this.SendToClient(entry.Value, code, message);
@@ -412,15 +507,16 @@ namespace LMessengerServer
             try
             {
                 byte[] buffer = System.Text.Encoding.ASCII.GetBytes((((char)code) + "|Admin|" + message + "|\n").ToCharArray());
+
+                buffer = this.EncrptyDecrypt(buffer);
+
                 cl.MySocket.Send(buffer, buffer.Length, 0);
             }
             catch (Exception e)
             {
-                Console.WriteLine(e);
-                cl.MySocket.Close();
-                cl.MyThread.Abort();
-                this.clientsDict.Remove(cl.UserName);
                 this.RemoveListBox(this.listBoxUsers, cl.LogData());
+                cl.Shutdown();
+                this.clientsDict.Remove(cl.UserName);
             }
         }
 
@@ -429,27 +525,30 @@ namespace LMessengerServer
             try
             {
                 byte[] buffer = System.Text.Encoding.ASCII.GetBytes((((char)code) + "|" + sender + "|" + message + "|").ToCharArray());
+
+                buffer = this.EncrptyDecrypt(buffer);
+
                 cl.MySocket.Send(buffer, buffer.Length, 0);
             }
             catch (Exception e)
             {
-                Console.WriteLine(e);
-                cl.MySocket.Close();
-                cl.MyThread.Abort();
-                this.clientsDict.Remove(cl.UserName);
                 this.RemoveListBox(this.listBoxUsers, cl.LogData());
+                cl.Shutdown();
+                this.clientsDict.Remove(cl.UserName);
             }
         }
 
         private void RelayToAllClients(EMessageCode code, string sender, string message)
         {
+            if (this.clientsDict == null || this.clientsDict.Count == 0) return;
+
             foreach (KeyValuePair<string, LClient> entry in this.clientsDict)
             {
                 this.RelayToClient(entry.Value, code, sender, message);
             }
         }
 
-        #region credentials
+        #region credentials & files
 
         private bool CheckCredentials(string username, string password)
         {
@@ -520,7 +619,7 @@ namespace LMessengerServer
                         }
                     }
                 }
-                }
+            }
             catch(IOException e)
             {
                 MessageBox.Show("Error Loading credentials:\n\n" + e, "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop);
@@ -528,23 +627,113 @@ namespace LMessengerServer
 
         }
 
+        private void RecieveFile(LClient client, long length, string filename)
+        {
+            //client agreed
+            int max = 1024;
+            Byte[] data = new Byte[max];
+            long l = length;
+            if (!Directory.Exists("RecievedFiles"))
+                Directory.CreateDirectory("RecievedFiles");
+            string fname = "RecievedFiles\\" + filename;
+
+            try
+            {
+                using (FileStream write = new FileStream(fname, FileMode.Create, FileAccess.ReadWrite))
+                {
+                    while (client.MySocket.Receive(data, 0, max, SocketFlags.None) > 0 && l > 0)
+                    {
+                        write.Write(data, 0, max);
+                        write.Flush();
+                        l -= data.Length;
+                    }
+                    System.Threading.Thread.Sleep(300);
+                    write.Close();
+                }
+            }
+            catch (Exception e)
+            {
+                MessageBox.Show("Error creating file:\n\n" + e, "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop);
+            }
+
+
+            this.SendToClient(client, EMessageCode.GreatSuccess, (char)EMessageCode.MessageFile + "|" + (char)EMessageCode.GreatSuccess);
+
+        }
+
+        private void SendFile(LClient client, string fileLocationPlusName)
+        {
+            string fname = fileLocationPlusName;
+
+            try
+            {
+                //file doesnt exist.
+                if (!File.Exists(fname))
+                    return;
+
+
+                Byte[] buffer = new Byte[1024];
+
+                string[] words = fname.Split(new Char[] { '\\' });
+
+                int i = 0;
+                for (i = 0; i < words.Length; i++) { }
+
+
+                using (FileStream reader = new FileStream(fname, FileMode.Open, FileAccess.Read))
+                {
+                    long l = reader.Length;
+
+                    this.SendToClient(client, EMessageCode.MessageFile, "Admin|" + l + "|" + words[i - 1]);
+
+                    while (reader.Read(buffer, 0, 1024) > 0)
+                    {
+                        client.MySocket.Send(buffer, 0, 1024, SocketFlags.None);
+                    }
+                    System.Threading.Thread.Sleep(1000);
+                    reader.Dispose();
+                }
+
+            }
+            catch (Exception e)
+            {
+                MessageBox.Show("Error reading file.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop);
+            }
+        }
+
+        private void RelayFile(LClient clientSender, LClient clientReciever, long length, string filename)
+        {
+            try
+            {
+                long le = length;
+                long countR = 0;
+                long countS = 0;
+                Byte[] buffer = new Byte[1024];
+
+                this.SendToClient(clientReciever, EMessageCode.MessageFile, clientSender.UserName + "|" + length + "|" + filename);
+
+                while (countR < length)
+                {
+                    if (clientSender.MySocket.Receive(buffer) > 0)
+                        countR += clientReciever.MySocket.Send(buffer);
+                }
+            }
+            catch(SocketException e)
+            {
+                Console.WriteLine("RelayFile FAILED");
+            }
+        }
+
+
         #endregion
 
         private void Shutdown()
         {
-            if (!this.isRunning) return;
             this.isRunning = false;
 
-            foreach(LClient c in this.clientsDict.Values)
-            {
-                this.SendToClient(c, EMessageCode.DropConnection, "Server shutdown");
-                if(!c.Shutdown())
-                {
-                    Console.WriteLine(c.UserName + " failed to shutdown.");
-                }
 
-            }
-
+            this.SendToAllClients(EMessageCode.DropConnection, "Server shutdown");
+            System.Threading.Thread.Sleep(500);
 
             if (this.listener != null)
             {
@@ -585,6 +774,45 @@ namespace LMessengerServer
         {
             this.Shutdown();
             base.OnClosing(e);
+        }
+
+        private void txtBoxCommand_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode != Keys.Return) return;
+
+            if (!this.isRunning) return;
+
+            switch (this.comboBoxMessageType.SelectedItem.ToString())
+            {
+                case "All":
+                    this.SendToAllClients(EMessageCode.MessageAll, this.txtBoxCommand.Text);
+                    break;
+                case "Whisper":
+                    {
+                        LClient c = GetSelectedClient();
+                        if (c == null) return;
+
+                        this.SendToClient(c, EMessageCode.MessageWhisper, this.txtBoxCommand.Text);
+                    }
+                    break;
+                case "File":
+                    break;
+                case "Kick":
+                    {
+                        LClient c = GetSelectedClient();
+                        if (c == null) return;
+
+                        this.SendToClient(c, EMessageCode.DropConnection, this.txtBoxCommand.Text);
+                    }
+                    break;
+
+            }
+
+            this.UpdateReader(this.comboBoxMessageType.SelectedItem.ToString() + " : Admin : " + this.txtBoxCommand.Text + Environment.NewLine);
+
+            System.Threading.Thread.Sleep(100);
+            this.SetText(this.txtBoxCommand, "");    
+
         }
     }
 }

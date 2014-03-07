@@ -18,7 +18,7 @@ namespace LNetwork
         private Socket socket;
         private Thread thread;
         private EndPoint endpoint;
-
+        private int fileBytecount = 0;
         private string userName;
 
         public LClient(string userName, EndPoint endpoint, Thread thread, Socket socket)
@@ -58,37 +58,29 @@ namespace LNetwork
             set { this.userName = value; }
         }
 
-        public bool Shutdown()
+        public int Bytecount
         {
-            int counter = 0;
-            while (this.thread != null && this.socket != null && this.endpoint != null)
+            get { return this.fileBytecount; }
+            set { this.fileBytecount = value; }
+        }
+
+        public void Shutdown()
+        {
+            
+            if (this.socket != null)
             {
-                if (this.thread != null)
-                {
-                    if (this.thread.IsAlive)
-                        this.thread.Abort();
-                    this.thread = null;
-                }
-
-                if (this.socket != null)
-                {
+                if(this.socket.Connected)
                     this.socket.Disconnect(true);
-                    this.socket.Close();
-                    this.socket.Dispose();
-                    this.socket = null;
-                }
-
-                if (this.endpoint != null)
-                {
-                    this.endpoint = null;
-                }
-
-                counter++;
-                if (counter > 10)
-                    return false;
+                this.socket.Close();
+                this.socket.Dispose();
+                this.socket = null;
             }
 
-            return true;
+            if (this.endpoint != null)
+            {
+                this.endpoint = null;
+            }
+
         }
     }
 }

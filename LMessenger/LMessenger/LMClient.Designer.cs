@@ -44,11 +44,12 @@
             this.comboBoxMessageType = new System.Windows.Forms.ComboBox();
             this.listBoxUsers = new System.Windows.Forms.ListBox();
             this.labelStatus = new System.Windows.Forms.Label();
+            this.progressBar = new System.Windows.Forms.ProgressBar();
             this.SuspendLayout();
             // 
             // btnConnect
             // 
-            this.btnConnect.Location = new System.Drawing.Point(294, 12);
+            this.btnConnect.Location = new System.Drawing.Point(293, 23);
             this.btnConnect.Name = "btnConnect";
             this.btnConnect.Size = new System.Drawing.Size(100, 23);
             this.btnConnect.TabIndex = 0;
@@ -58,7 +59,7 @@
             // 
             // btnSendMessage
             // 
-            this.btnSendMessage.Location = new System.Drawing.Point(294, 362);
+            this.btnSendMessage.Location = new System.Drawing.Point(293, 373);
             this.btnSendMessage.Name = "btnSendMessage";
             this.btnSendMessage.Size = new System.Drawing.Size(100, 23);
             this.btnSendMessage.TabIndex = 1;
@@ -68,14 +69,15 @@
             // 
             // txtBoxMessage
             // 
-            this.txtBoxMessage.Location = new System.Drawing.Point(13, 362);
+            this.txtBoxMessage.Location = new System.Drawing.Point(12, 373);
             this.txtBoxMessage.Name = "txtBoxMessage";
             this.txtBoxMessage.Size = new System.Drawing.Size(275, 20);
             this.txtBoxMessage.TabIndex = 2;
+            this.txtBoxMessage.KeyDown += new System.Windows.Forms.KeyEventHandler(this.txtBoxMessage_KeyDown);
             // 
             // txtBoxDisplay
             // 
-            this.txtBoxDisplay.Location = new System.Drawing.Point(13, 12);
+            this.txtBoxDisplay.Location = new System.Drawing.Point(12, 23);
             this.txtBoxDisplay.Multiline = true;
             this.txtBoxDisplay.Name = "txtBoxDisplay";
             this.txtBoxDisplay.ReadOnly = true;
@@ -85,7 +87,7 @@
             // 
             // txtBoxServerPort
             // 
-            this.txtBoxServerPort.Location = new System.Drawing.Point(294, 101);
+            this.txtBoxServerPort.Location = new System.Drawing.Point(293, 112);
             this.txtBoxServerPort.MaxLength = 8;
             this.txtBoxServerPort.Name = "txtBoxServerPort";
             this.txtBoxServerPort.Size = new System.Drawing.Size(100, 20);
@@ -94,7 +96,7 @@
             // 
             // txtBoxServerIP
             // 
-            this.txtBoxServerIP.Location = new System.Drawing.Point(294, 62);
+            this.txtBoxServerIP.Location = new System.Drawing.Point(293, 73);
             this.txtBoxServerIP.Multiline = true;
             this.txtBoxServerIP.Name = "txtBoxServerIP";
             this.txtBoxServerIP.Size = new System.Drawing.Size(100, 20);
@@ -104,7 +106,7 @@
             // labelServerIP
             // 
             this.labelServerIP.AutoSize = true;
-            this.labelServerIP.Location = new System.Drawing.Point(296, 46);
+            this.labelServerIP.Location = new System.Drawing.Point(295, 57);
             this.labelServerIP.Name = "labelServerIP";
             this.labelServerIP.Size = new System.Drawing.Size(54, 13);
             this.labelServerIP.TabIndex = 8;
@@ -113,7 +115,7 @@
             // labelServerPort
             // 
             this.labelServerPort.AutoSize = true;
-            this.labelServerPort.Location = new System.Drawing.Point(296, 85);
+            this.labelServerPort.Location = new System.Drawing.Point(295, 96);
             this.labelServerPort.Name = "labelServerPort";
             this.labelServerPort.Size = new System.Drawing.Size(63, 13);
             this.labelServerPort.TabIndex = 9;
@@ -122,7 +124,7 @@
             // labelUserPassword
             // 
             this.labelUserPassword.AutoSize = true;
-            this.labelUserPassword.Location = new System.Drawing.Point(296, 163);
+            this.labelUserPassword.Location = new System.Drawing.Point(295, 174);
             this.labelUserPassword.Name = "labelUserPassword";
             this.labelUserPassword.Size = new System.Drawing.Size(56, 13);
             this.labelUserPassword.TabIndex = 13;
@@ -131,7 +133,7 @@
             // labelUserName
             // 
             this.labelUserName.AutoSize = true;
-            this.labelUserName.Location = new System.Drawing.Point(296, 124);
+            this.labelUserName.Location = new System.Drawing.Point(295, 135);
             this.labelUserName.Name = "labelUserName";
             this.labelUserName.Size = new System.Drawing.Size(58, 13);
             this.labelUserName.TabIndex = 12;
@@ -139,7 +141,7 @@
             // 
             // txtBoxUsername
             // 
-            this.txtBoxUsername.Location = new System.Drawing.Point(294, 140);
+            this.txtBoxUsername.Location = new System.Drawing.Point(293, 151);
             this.txtBoxUsername.Name = "txtBoxUsername";
             this.txtBoxUsername.Size = new System.Drawing.Size(100, 20);
             this.txtBoxUsername.TabIndex = 11;
@@ -147,7 +149,7 @@
             // 
             // txtBoxPassword
             // 
-            this.txtBoxPassword.Location = new System.Drawing.Point(294, 179);
+            this.txtBoxPassword.Location = new System.Drawing.Point(293, 190);
             this.txtBoxPassword.Name = "txtBoxPassword";
             this.txtBoxPassword.Size = new System.Drawing.Size(100, 20);
             this.txtBoxPassword.TabIndex = 10;
@@ -157,7 +159,7 @@
             // 
             this.comboBoxMessageType.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBoxMessageType.FormattingEnabled = true;
-            this.comboBoxMessageType.Location = new System.Drawing.Point(294, 335);
+            this.comboBoxMessageType.Location = new System.Drawing.Point(293, 346);
             this.comboBoxMessageType.Name = "comboBoxMessageType";
             this.comboBoxMessageType.Size = new System.Drawing.Size(100, 21);
             this.comboBoxMessageType.Sorted = true;
@@ -167,7 +169,7 @@
             // 
             this.listBoxUsers.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             this.listBoxUsers.FormattingEnabled = true;
-            this.listBoxUsers.Location = new System.Drawing.Point(294, 210);
+            this.listBoxUsers.Location = new System.Drawing.Point(293, 221);
             this.listBoxUsers.Name = "listBoxUsers";
             this.listBoxUsers.Size = new System.Drawing.Size(100, 119);
             this.listBoxUsers.TabIndex = 15;
@@ -175,17 +177,26 @@
             // labelStatus
             // 
             this.labelStatus.AutoSize = true;
-            this.labelStatus.Location = new System.Drawing.Point(13, 389);
+            this.labelStatus.Location = new System.Drawing.Point(10, 7);
             this.labelStatus.Name = "labelStatus";
             this.labelStatus.Size = new System.Drawing.Size(46, 13);
             this.labelStatus.TabIndex = 16;
             this.labelStatus.Text = "Status...";
             // 
+            // progressBar
+            // 
+            this.progressBar.Location = new System.Drawing.Point(12, 399);
+            this.progressBar.Name = "progressBar";
+            this.progressBar.Size = new System.Drawing.Size(381, 23);
+            this.progressBar.Style = System.Windows.Forms.ProgressBarStyle.Continuous;
+            this.progressBar.TabIndex = 17;
+            // 
             // LMClient
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(403, 410);
+            this.ClientSize = new System.Drawing.Size(407, 426);
+            this.Controls.Add(this.progressBar);
             this.Controls.Add(this.labelStatus);
             this.Controls.Add(this.listBoxUsers);
             this.Controls.Add(this.comboBoxMessageType);
@@ -227,6 +238,7 @@
         private System.Windows.Forms.ComboBox comboBoxMessageType;
         private System.Windows.Forms.ListBox listBoxUsers;
         private System.Windows.Forms.Label labelStatus;
+        private System.Windows.Forms.ProgressBar progressBar;
     }
 }
 
